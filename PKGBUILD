@@ -7,20 +7,14 @@ arch=('any')
 license=('custom')
 depends=('python' 'matrix-synapse')
 makedepends=('python-build' 'python-installer' 'python-setuptools')
-source=("git+https://github.com/ehrengruber-architekten/ea-element-web.git")
-sha256sums=('SKIP')
-
-pkgver() {
-    cd "ea-element-web"
-    printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
-}
+source=()
 
 build() {
-    cd "ea-element-web/synapse_auto_dm"
+    cd "$startdir"
     python -m build --wheel --no-isolation
 }
 
 package() {
-    cd "ea-element-web/synapse_auto_dm"
+    cd "$startdir"
     python -m installer --destdir="$pkgdir" dist/*.whl
 }
