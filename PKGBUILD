@@ -1,11 +1,11 @@
 # Maintainer: Ehrengruber Architekten
 pkgname=python-synapse-auto-dm
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
-pkgdesc="Synapse module that automatically creates DM rooms between users on registration"
+pkgdesc="Synapse module that automatically creates DM rooms between users, and one room per user with themselves"
 arch=('any')
 license=('custom')
-depends=('python' 'matrix-synapse')
+depends=('python' 'matrix-synapse>=1.90')
 makedepends=('python-build' 'python-installer' 'python-setuptools')
 source=()
 
