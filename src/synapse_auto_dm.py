@@ -13,7 +13,13 @@ BACKFILL_DELAY_MS = 10 * 1000
 
 
 def _select_all_users(txn):
-    txn.execute("SELECT name FROM users WHERE deactivated = 0")
+    # Local people only. Guests, bots, support accounts and the users an
+    # application service owns have no business being given chat rooms.
+    txn.execute(
+        "SELECT name FROM users "
+        "WHERE deactivated = 0 AND is_guest = 0 "
+        "AND user_type IS NULL AND appservice_id IS NULL"
+    )
     return [row[0] for row in txn.fetchall()]
 
 
