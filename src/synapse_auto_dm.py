@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Mapping
 
 from synapse.module_api import ModuleApi
 
@@ -146,7 +147,11 @@ class AutoDMModule:
         direct = await self._api.account_data_manager.get_global(
             user_id, DIRECT_ACCOUNT_DATA_TYPE
         )
-        return dict(direct) if isinstance(direct, dict) else {}
+        # Synapse hands back a Mapping, and wraps cached account data in an
+        # immutabledict, which is not a dict subclass. Treating that as "no data"
+        # made every read look empty, so the self room was recreated on every
+        # startup and writing one key dropped all the others.
+        return dict(direct) if isinstance(direct, Mapping) else {}
 
     async def _get_room_name(self, user_id: str) -> str:
         """Name the self DM after the user, the way Element names a DM after its
