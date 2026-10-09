@@ -23,6 +23,15 @@ def _select_all_users(txn):
     return [row[0] for row in txn.fetchall()]
 
 
+def _select_user_flags(txn, user_id):
+    txn.execute(
+        "SELECT deactivated, is_guest, user_type, appservice_id "
+        "FROM users WHERE name = ?",
+        (user_id,),
+    )
+    return txn.fetchone()
+
+
 class AutoDMModule:
     def __init__(self, config: dict, api: ModuleApi):
         self._api = api
@@ -47,6 +56,10 @@ class AutoDMModule:
         return config
 
     async def on_user_registration(self, user_id: str) -> None:
+        if not await self._is_person(user_id):
+            logger.info("New user %s is not a local person, leaving it alone", user_id)
+            return
+
         logger.info("New user registered: %s — creating DM rooms", user_id)
 
         all_users = await self._get_all_users()
@@ -96,6 +109,22 @@ class AutoDMModule:
                 await self._create_self_room(user_id)
             except Exception:
                 logger.exception("Failed to create self DM for %s", user_id)
+
+    async def _is_person(self, user_id: str) -> bool:
+        """Whether rooms should be created for this account.
+
+        Only a positively marked guest, bot, support or application service
+        account is turned away. An account the query cannot find is given the
+        benefit of the doubt, since the row may not be visible yet at the point
+        the registration callback runs.
+        """
+        flags = await self._api.run_db_interaction(
+            "get_user_flags", _select_user_flags, user_id
+        )
+        if not flags:
+            return True
+        deactivated, is_guest, user_type, appservice_id = flags
+        return not (deactivated or is_guest or user_type or appservice_id)
 
     async def _get_all_users(self) -> list:
         return await self._api.run_db_interaction(
