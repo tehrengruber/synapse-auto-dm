@@ -63,6 +63,8 @@ class AutoDMModule:
                     room_id=room_id,
                     new_membership="join",
                 )
+                await self._mark_direct(user_id, other_user_id, room_id)
+                await self._mark_direct(other_user_id, user_id, room_id)
                 logger.info(
                     "Created DM %s <-> %s: %s", user_id, other_user_id, room_id
                 )
@@ -96,9 +98,8 @@ class AutoDMModule:
     async def _create_self_room(self, user_id: str) -> None:
         """Create the room a user shares with nobody but themselves.
 
-        A user cannot invite themselves, so unlike the DMs between two users this
-        room is marked as a DM by writing the ``m.direct`` account data by hand,
-        keyed by the user's own ID.
+        A user cannot invite themselves, so the room is keyed by the user's own ID
+        in their ``m.direct`` account data.
         """
         if await self._has_self_room(user_id):
             logger.debug("Self DM for %s already exists", user_id)
@@ -113,16 +114,33 @@ class AutoDMModule:
             },
             ratelimit=False,
         )
-        direct = await self._get_direct_account_data(user_id)
-        direct[user_id] = [room_id]
-        await self._api.account_data_manager.put_global(
-            user_id, DIRECT_ACCOUNT_DATA_TYPE, direct
-        )
+        await self._mark_direct(user_id, user_id, room_id)
         logger.info("Created self DM for %s: %s", user_id, room_id)
 
     async def _has_self_room(self, user_id: str) -> bool:
         direct = await self._get_direct_account_data(user_id)
         return bool(direct.get(user_id))
+
+    async def _mark_direct(
+        self, user_id: str, other_user_id: str, room_id: str
+    ) -> None:
+        """Record a room as a DM with ``other_user_id`` in ``user_id``'s account data.
+
+        ``is_direct`` on room creation only reaches the invite event; writing
+        ``m.direct`` is the client's job, and no client takes part in creating these
+        rooms. Clients that go by the account data treat an untagged room as a group
+        room, which on Element Classic means offering a Jitsi conference rather than
+        a 1:1 call.
+        """
+        direct = await self._get_direct_account_data(user_id)
+        rooms = list(direct.get(other_user_id) or [])
+        if room_id in rooms:
+            return
+        rooms.append(room_id)
+        direct[other_user_id] = rooms
+        await self._api.account_data_manager.put_global(
+            user_id, DIRECT_ACCOUNT_DATA_TYPE, direct
+        )
 
     async def _get_direct_account_data(self, user_id: str) -> dict:
         direct = await self._api.account_data_manager.get_global(
